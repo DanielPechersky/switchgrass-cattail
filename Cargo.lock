@@ -486,7 +486,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3318413fb566c7227387f67736cf70cd74d80a11f2bb31c7b95a9eb48d079669"
 dependencies = [
  "cfg-if",
- "defmt 1.0.1",
  "document-features",
  "esp-config",
  "esp-metadata-generated",
@@ -941,6 +940,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "libm"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f9fbbcab51052fe104eb5e5d351cf728d30a5be1fe14d9be8a3b097481fb97de"
+
+[[package]]
 name = "litrs"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -957,6 +962,18 @@ name = "memchr"
 version = "2.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f52b00d39961fc5b2736ea853c9cc86238e165017a493d1d5c8eac6bdc4cc273"
+
+[[package]]
+name = "mpu6050-dmp"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0a75c0c24f43578e6cd3f518f35ab9f17fd95124cc1a66e04143b498cd37eec4"
+dependencies = [
+ "defmt 0.3.100",
+ "embedded-hal 1.0.0",
+ "embedded-hal-async",
+ "libm",
+]
 
 [[package]]
 name = "nb"
@@ -1282,6 +1299,7 @@ dependencies = [
  "esp-hal",
  "esp-println",
  "esp-rtos",
+ "mpu6050-dmp",
  "static_cell",
 ]
 

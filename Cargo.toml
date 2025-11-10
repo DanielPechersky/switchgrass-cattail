@@ -1,8 +1,8 @@
 [package]
-edition      = "2024"
-name         = "switchgrass-cattail"
+edition = "2024"
+name = "switchgrass-cattail"
 rust-version = "1.88"
-version      = "0.1.0"
+version = "0.1.0"
 
 [[bin]]
 name = "switchgrass-cattail"
@@ -13,20 +13,21 @@ esp-hal = { version = "1.0.0", features = ["defmt", "esp32s3", "unstable"] }
 
 esp-rtos = { version = "0.2.0", features = ["defmt", "embassy", "esp32s3"] }
 
-defmt                  = "1.0.1"
+defmt = "1.0.1"
 esp-bootloader-esp-idf = { version = "0.4.0", features = ["defmt", "esp32s3"] }
 
 embassy-executor = { version = "0.9.1", features = ["defmt"] }
 embassy-time = { version = "0.5.0", features = ["defmt"] }
 esp-backtrace = { version = "0.18.1", features = [
-  "defmt",
+  "println",
   "esp32s3",
   "panic-handler",
 ] }
 esp-println = { version = "0.16.1", features = ["defmt-espflash", "esp32s3"] }
 
 critical-section = "1.2.0"
-static_cell      = "2.1.1"
+static_cell = "2.1.1"
+mpu6050-dmp = { version = "0.6.1", features = ["async", "defmt-03"] }
 
 
 [profile.dev]
@@ -35,10 +36,10 @@ static_cell      = "2.1.1"
 opt-level = "s"
 
 [profile.release]
-codegen-units    = 1     # LLVM can perform better optimizations using a single thread
-debug            = 2
+codegen-units = 1        # LLVM can perform better optimizations using a single thread
+debug = 2
 debug-assertions = false
-incremental      = false
-lto              = 'fat'
-opt-level        = 's'
-overflow-checks  = false
+incremental = false
+lto = 'fat'
+opt-level = 's'
+overflow-checks = false

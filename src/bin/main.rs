@@ -6,8 +6,9 @@
     holding buffers for the duration of a data transfer."
 )]
 
-use esp_hal::clock::CpuClock;
+use esp_hal::i2c::master::{Config, I2c};
 use esp_hal::timer::timg::TimerGroup;
+use esp_hal::{clock::CpuClock, time::Rate};
 
 use defmt::info;
 use esp_println as _;
@@ -16,6 +17,7 @@ use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 
 use esp_backtrace as _;
+use mpu6050_dmp::{address::Address, sensor_async::Mpu6050};
 
 // This creates a default app-descriptor required by the esp-idf bootloader.
 // For more information see: <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/app_image_format.html#application-description>
@@ -29,12 +31,27 @@ async fn main(_spawner: Spawner) -> ! {
     let timg0 = TimerGroup::new(peripherals.TIMG0);
     esp_rtos::start(timg0.timer0);
 
-    info!("Embassy initialized!");
+    info!("Initializing MPU6050");
+
+    let i2c = I2c::new(
+        peripherals.I2C0,
+        Config::default().with_frequency(Rate::from_khz(100)),
+    )
+    .unwrap()
+    .with_sda(peripherals.GPIO37)
+    .with_scl(peripherals.GPIO36)
+    .into_async();
+
+    let mut mpu = Mpu6050::new(i2c, Address::default()).await.unwrap();
+
+    info!("MPU6050 initialized!");
 
     loop {
-        info!("Hello world!");
-        Timer::after(Duration::from_secs(1)).await;
-    }
+        let acc = mpu.accel().await.unwrap();
+        let gyro = mpu.gyro().await.unwrap();
 
-    // for inspiration have a look at the examples at https://github.com/esp-rs/esp-hal/tree/esp-hal-v1.0.0/examples/src/bin
+        info!("acc: x={}, y={}, z={}", acc.x(), acc.y(), acc.z());
+        info!("gyro: x={}, y={}, z={}", gyro.x(), gyro.y(), gyro.z());
+        Timer::after(Duration::from_millis(100)).await;
+    }
 }
