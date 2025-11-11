@@ -28,6 +28,7 @@ esp-println = { version = "0.16.1", features = ["defmt-espflash", "esp32s3"] }
 critical-section = "1.2.0"
 static_cell = "2.1.1"
 mpu6050-dmp = { version = "0.6.1", features = ["async", "defmt-03"] }
+heapless = "0.9.1"
 
 
 [profile.dev]

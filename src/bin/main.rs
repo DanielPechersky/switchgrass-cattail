@@ -6,9 +6,14 @@
     holding buffers for the duration of a data transfer."
 )]
 
-use esp_hal::i2c::master::{Config, I2c};
+use core::fmt::Write as _;
+
 use esp_hal::timer::timg::TimerGroup;
 use esp_hal::{clock::CpuClock, time::Rate};
+use esp_hal::{
+    i2c::master::{Config, I2c},
+    uart::{self, UartTx},
+};
 
 use defmt::info;
 use esp_println as _;
@@ -43,6 +48,10 @@ async fn main(_spawner: Spawner) -> ! {
     .into_async();
 
     let mut mpu = Mpu6050::new(i2c, Address::default()).await.unwrap();
+    let mut out = UartTx::new(peripherals.UART1, uart::Config::default())
+        .unwrap()
+        .with_tx(peripherals.GPIO9)
+        .into_async();
 
     info!("MPU6050 initialized!");
 
@@ -52,6 +61,11 @@ async fn main(_spawner: Spawner) -> ! {
 
         info!("acc: x={}, y={}, z={}", acc.x(), acc.y(), acc.z());
         info!("gyro: x={}, y={}, z={}", gyro.x(), gyro.y(), gyro.z());
+
+        let mut msg = heapless::String::<128>::new();
+        writeln!(&mut msg, "x={} y={} z={}", acc.x(), acc.y(), acc.z()).unwrap();
+        out.write_async(msg.as_bytes()).await.unwrap();
+
         Timer::after(Duration::from_millis(100)).await;
     }
 }
