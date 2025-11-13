@@ -19,10 +19,16 @@ use defmt::info;
 use esp_println as _;
 
 use embassy_executor::Spawner;
-use embassy_time::{Duration, Timer};
+use embassy_time::{Delay, Duration, Timer};
 
 use esp_backtrace as _;
-use mpu6050_dmp::{address::Address, sensor_async::Mpu6050};
+use mpu6050_dmp::{
+    accel::AccelFullScale,
+    address::Address,
+    calibration::{CalibrationParameters, ReferenceGravity},
+    gyro::GyroFullScale,
+    sensor_async::Mpu6050,
+};
 
 // This creates a default app-descriptor required by the esp-idf bootloader.
 // For more information see: <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/app_image_format.html#application-description>
@@ -55,17 +61,35 @@ async fn main(_spawner: Spawner) -> ! {
 
     info!("MPU6050 initialized!");
 
+    let mpu_calibration = CalibrationParameters::new(
+        AccelFullScale::G4,
+        GyroFullScale::Deg250,
+        ReferenceGravity::Zero,
+    );
+    mpu.calibrate(&mut Delay, &mpu_calibration).await.unwrap();
+
     loop {
-        let acc = mpu.accel().await.unwrap();
-        let gyro = mpu.gyro().await.unwrap();
+        let (acc, gyro) = mpu.motion6().await.unwrap();
+        let acc = acc.scaled(mpu_calibration.accel_scale);
+        let gyro = gyro.scaled(mpu_calibration.gyro_scale);
 
-        info!("acc: x={}, y={}, z={}", acc.x(), acc.y(), acc.z());
-        info!("gyro: x={}, y={}, z={}", gyro.x(), gyro.y(), gyro.z());
+        let msg = data_message("accel", [acc.x(), acc.y(), acc.z()]);
+        info!("sending {}", msg.as_str());
+        out.write_async(msg.as_bytes()).await.unwrap();
 
-        let mut msg = heapless::String::<128>::new();
-        writeln!(&mut msg, "x={} y={} z={}", acc.x(), acc.y(), acc.z()).unwrap();
+        let msg = data_message("gyro", [gyro.x(), gyro.y(), gyro.z()]);
+        info!("sending {}", msg.as_str());
         out.write_async(msg.as_bytes()).await.unwrap();
 
         Timer::after(Duration::from_millis(100)).await;
     }
+}
+
+const ID: &str = env!("ID");
+
+fn data_message(r#type: &str, [x, y, z]: [f32; 3]) -> heapless::String<256> {
+    assert!(r#type.len() <= 16);
+    let mut msg = heapless::String::new();
+    writeln!(&mut msg, "id={ID} type={type} x={x} y={y} z={z}",).unwrap();
+    msg
 }
