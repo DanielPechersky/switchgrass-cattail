@@ -19,13 +19,14 @@ use defmt::info;
 use esp_println as _;
 
 use embassy_executor::Spawner;
-use embassy_time::{Delay, Duration, Timer};
+use embassy_time::Delay;
 
 use esp_backtrace as _;
 use mpu6050_dmp::{
     accel::AccelFullScale,
     address::Address,
     calibration::{CalibrationParameters, ReferenceGravity},
+    config::DigitalLowPassFilter,
     gyro::GyroFullScale,
     sensor_async::Mpu6050,
 };
@@ -59,14 +60,23 @@ async fn main(_spawner: Spawner) -> ! {
         .with_tx(peripherals.GPIO9)
         .into_async();
 
-    info!("MPU6050 initialized!");
+    info!("Initializing MPU6050 DMP");
+    mpu.initialize_dmp(&mut Delay).await.unwrap();
 
+    info!("Calibrating MPU6050");
     let mpu_calibration = CalibrationParameters::new(
-        AccelFullScale::G4,
-        GyroFullScale::Deg250,
-        ReferenceGravity::Zero,
+        AccelFullScale::G2,
+        GyroFullScale::Deg1000,
+        ReferenceGravity::XN,
     );
     mpu.calibrate(&mut Delay, &mpu_calibration).await.unwrap();
+
+    mpu.set_sample_rate_divider(99).await.unwrap();
+    mpu.set_digital_lowpass_filter(DigitalLowPassFilter::Filter3)
+        .await
+        .unwrap();
+
+    info!("Entering main loop");
 
     loop {
         let (acc, gyro) = mpu.motion6().await.unwrap();
@@ -80,8 +90,6 @@ async fn main(_spawner: Spawner) -> ! {
         let msg = data_message("gyro", [gyro.x(), gyro.y(), gyro.z()]);
         info!("sending {}", msg.as_str());
         out.write_async(msg.as_bytes()).await.unwrap();
-
-        Timer::after(Duration::from_millis(100)).await;
     }
 }
 
