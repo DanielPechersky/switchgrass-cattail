@@ -8,6 +8,10 @@ version = "0.1.0"
 name = "switchgrass-cattail"
 path = "./src/bin/main.rs"
 
+[[bin]]
+name = "switchgrass-cattail-calibrate"
+path = "./src/bin/calibrate.rs"
+
 [dependencies]
 esp-hal = { version = "1.0.0", features = ["defmt", "esp32s3", "unstable"] }
 
