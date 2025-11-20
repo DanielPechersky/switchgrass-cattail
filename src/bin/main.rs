@@ -8,28 +8,22 @@
 
 use core::fmt::Write as _;
 
+use esp_hal::clock::CpuClock;
 use esp_hal::timer::timg::TimerGroup;
-use esp_hal::{clock::CpuClock, time::Rate};
-use esp_hal::{
-    i2c::master::{Config, I2c},
-    uart::{self, UartTx},
-};
 
-use defmt::info;
+use defmt::{info, warn};
 use esp_println as _;
 
 use embassy_executor::Spawner;
 use embassy_time::Delay;
 
 use esp_backtrace as _;
-use mpu6050_dmp::{
-    accel::AccelFullScale,
-    address::Address,
-    calibration::{CalibrationParameters, ReferenceGravity},
-    config::DigitalLowPassFilter,
-    gyro::GyroFullScale,
-    sensor_async::Mpu6050,
-};
+use mpu6050_dmp::config::DigitalLowPassFilter;
+
+use smart_leds::RGB8;
+use smart_leds::SmartLedsWriteAsync;
+
+use switchgrass_cattail::{mpu::NotStored, ws281x};
 
 // This creates a default app-descriptor required by the esp-idf bootloader.
 // For more information see: <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/app_image_format.html#application-description>
@@ -43,33 +37,26 @@ async fn main(_spawner: Spawner) -> ! {
     let timg0 = TimerGroup::new(peripherals.TIMG0);
     esp_rtos::start(timg0.timer0);
 
-    info!("Initializing MPU6050");
+    const STRIP_LENGTH: usize = 200;
+    let led_data = [RGB8::new(90, 20, 0); STRIP_LENGTH];
+    let mut ws281x = ws281x::init::<{ STRIP_LENGTH * 12 }>(peripherals.SPI2, peripherals.GPIO10);
+    ws281x.write(led_data).await.unwrap();
 
-    let i2c = I2c::new(
+    let mut mpu = switchgrass_cattail::mpu::init(
         peripherals.I2C0,
-        Config::default().with_frequency(Rate::from_khz(100)),
+        peripherals.GPIO37,
+        peripherals.GPIO36,
+        &mut Delay,
     )
-    .unwrap()
-    .with_sda(peripherals.GPIO37)
-    .with_scl(peripherals.GPIO36)
-    .into_async();
+    .await;
 
-    let mut mpu = Mpu6050::new(i2c, Address::default()).await.unwrap();
-    let mut out = UartTx::new(peripherals.UART1, uart::Config::default())
-        .unwrap()
-        .with_tx(peripherals.GPIO9)
-        .into_async();
+    let mut out = switchgrass_cattail::transmission::init(peripherals.UART1, peripherals.GPIO9);
 
-    info!("Initializing MPU6050 DMP");
-    mpu.initialize_dmp(&mut Delay).await.unwrap();
-
-    info!("Calibrating MPU6050");
-    let mpu_calibration = CalibrationParameters::new(
-        AccelFullScale::G2,
-        GyroFullScale::Deg1000,
-        ReferenceGravity::XN,
-    );
-    mpu.calibrate(&mut Delay, &mpu_calibration).await.unwrap();
+    if let Err(NotStored) =
+        switchgrass_cattail::mpu::load_calibrate(&mut mpu, peripherals.FLASH).await
+    {
+        warn!("MPU6050 was never calibrated!")
+    }
 
     mpu.set_sample_rate_divider(99).await.unwrap();
     mpu.set_digital_lowpass_filter(DigitalLowPassFilter::Filter3)
@@ -80,8 +67,8 @@ async fn main(_spawner: Spawner) -> ! {
 
     loop {
         let (acc, gyro) = mpu.motion6().await.unwrap();
-        let acc = acc.scaled(mpu_calibration.accel_scale);
-        let gyro = gyro.scaled(mpu_calibration.gyro_scale);
+        let acc = acc.scaled(switchgrass_cattail::mpu::CALIBRATION_PARAMETERS.accel_scale);
+        let gyro = gyro.scaled(switchgrass_cattail::mpu::CALIBRATION_PARAMETERS.gyro_scale);
 
         let msg = data_message("accel", [acc.x(), acc.y(), acc.z()]);
         info!("sending {}", msg.as_str());

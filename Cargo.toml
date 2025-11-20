@@ -28,11 +28,15 @@ esp-backtrace = { version = "0.18.1", features = [
   "panic-handler",
 ] }
 esp-println = { version = "0.16.1", features = ["defmt-espflash", "esp32s3"] }
+esp-storage = { version = "0.8.1", features = ["esp32s3"] }
 
 critical-section = "1.2.0"
 static_cell = "2.1.1"
 mpu6050-dmp = { version = "0.6.1", features = ["async", "defmt-03"] }
 heapless = "0.9.1"
+embedded-storage = "0.3.1"
+ws2812-async = "0.3.0"
+smart-leds = "0.4.0"
 
 
 [profile.dev]

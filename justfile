@@ -1,6 +1,6 @@
 
 flash id:
-    ID={{id}} cargo run
+    ID={{id}} cargo run --bin switchgrass-cattail
 
 calibrate:
     cargo run --bin switchgrass-cattail-calibrate

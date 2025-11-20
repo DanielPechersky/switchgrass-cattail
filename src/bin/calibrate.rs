@@ -6,6 +6,17 @@
     holding buffers for the duration of a data transfer."
 )]
 
+use esp_hal::clock::CpuClock;
+use esp_hal::timer::timg::TimerGroup;
+
+use defmt::info;
+use esp_println::{self as _, println};
+
+use embassy_executor::Spawner;
+use embassy_time::Delay;
+
+use esp_backtrace as _;
+
 esp_bootloader_esp_idf::esp_app_desc!();
 
 #[esp_rtos::main]
@@ -16,52 +27,30 @@ async fn main(_spawner: Spawner) -> ! {
     let timg0 = TimerGroup::new(peripherals.TIMG0);
     esp_rtos::start(timg0.timer0);
 
-    info!("Initializing MPU6050");
-
-    let i2c = I2c::new(
+    let mut mpu = switchgrass_cattail::mpu::init(
         peripherals.I2C0,
-        Config::default().with_frequency(Rate::from_khz(100)),
+        peripherals.GPIO37,
+        peripherals.GPIO36,
+        &mut Delay,
     )
-    .unwrap()
-    .with_sda(peripherals.GPIO37)
-    .with_scl(peripherals.GPIO36)
-    .into_async();
+    .await;
 
-    let mut mpu = Mpu6050::new(i2c, Address::default()).await.unwrap();
-    let mut out = UartTx::new(peripherals.UART1, uart::Config::default())
-        .unwrap()
-        .with_tx(peripherals.GPIO9)
-        .into_async();
+    switchgrass_cattail::mpu::save_calibrate(&mut mpu, peripherals.FLASH, &mut Delay).await;
 
-    info!("Initializing MPU6050 DMP");
-    mpu.initialize_dmp(&mut Delay).await.unwrap();
-
-    info!("Calibrating MPU6050");
-    let mpu_calibration = CalibrationParameters::new(
-        AccelFullScale::G2,
-        GyroFullScale::Deg1000,
-        ReferenceGravity::XN,
-    );
-    mpu.calibrate(&mut Delay, &mpu_calibration).await.unwrap();
-
-    mpu.set_sample_rate_divider(99).await.unwrap();
-    mpu.set_digital_lowpass_filter(DigitalLowPassFilter::Filter3)
-        .await
-        .unwrap();
-
-    info!("Entering main loop");
+    info!("Successfully calibrated MPU6050! Looping forever.");
 
     loop {
         let (acc, gyro) = mpu.motion6().await.unwrap();
-        let acc = acc.scaled(mpu_calibration.accel_scale);
-        let gyro = gyro.scaled(mpu_calibration.gyro_scale);
-
-        let msg = data_message("accel", [acc.x(), acc.y(), acc.z()]);
-        info!("sending {}", msg.as_str());
-        out.write_async(msg.as_bytes()).await.unwrap();
-
-        let msg = data_message("gyro", [gyro.x(), gyro.y(), gyro.z()]);
-        info!("sending {}", msg.as_str());
-        out.write_async(msg.as_bytes()).await.unwrap();
+        let acc = acc.scaled(switchgrass_cattail::mpu::CALIBRATION_PARAMETERS.accel_scale);
+        let gyro = gyro.scaled(switchgrass_cattail::mpu::CALIBRATION_PARAMETERS.gyro_scale);
+        println!(
+            "acc: {:.2} {:.2} {:.2} gyro: {:.2} {:.2} {:.2}",
+            acc.x(),
+            acc.y(),
+            acc.z(),
+            gyro.x(),
+            gyro.y(),
+            gyro.z(),
+        );
     }
 }
