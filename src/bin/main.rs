@@ -6,41 +6,45 @@
     holding buffers for the duration of a data transfer."
 )]
 
-use core::fmt::Write as _;
+use core::{fmt::Write as _, sync::atomic::Ordering};
 
-use esp_hal::clock::CpuClock;
-use esp_hal::timer::timg::TimerGroup;
+use atomic_float::AtomicF32;
+use esp_hal::{Async, clock::CpuClock, i2c::master::I2c};
+use esp_hal::{timer::timg::TimerGroup, uart::UartTx};
 
 use defmt::{info, warn};
 use esp_println as _;
 
 use embassy_executor::Spawner;
-use embassy_time::Delay;
+use embassy_time::{Delay, Timer};
 
 use esp_backtrace as _;
-use mpu6050_dmp::config::DigitalLowPassFilter;
+use mpu6050_dmp::{config::DigitalLowPassFilter, sensor_async::Mpu6050};
 
-use smart_leds::RGB8;
-use smart_leds::SmartLedsWriteAsync;
-
-use switchgrass_cattail::{mpu::NotStored, ws281x};
+use switchgrass_cattail::{mpu::NotStored, particles::Particles, ws281x};
 
 // This creates a default app-descriptor required by the esp-idf bootloader.
 // For more information see: <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/app_image_format.html#application-description>
 esp_bootloader_esp_idf::esp_app_desc!();
 
+const STRIP_LENGTH: usize = 200;
+const WS281X_BYTES: usize = STRIP_LENGTH * 12;
+
+type Ws281x = switchgrass_cattail::ws281x::Ws281x<'static, WS281X_BYTES>;
+
 #[esp_rtos::main]
-async fn main(_spawner: Spawner) -> ! {
+async fn main(spawner: Spawner) {
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
 
     let timg0 = TimerGroup::new(peripherals.TIMG0);
     esp_rtos::start(timg0.timer0);
 
-    const STRIP_LENGTH: usize = 200;
-    let led_data = [RGB8::new(90, 20, 0); STRIP_LENGTH];
-    let mut ws281x = ws281x::init::<{ STRIP_LENGTH * 12 }>(peripherals.SPI2, peripherals.GPIO10);
-    ws281x.write(led_data).await.unwrap();
+    let ws281x: Ws281x =
+        ws281x::init::<WS281X_BYTES>(peripherals.SPI2, peripherals.GPIO10, peripherals.DMA_CH0);
+    let particles = Particles::new(11.0);
+    static PARTICLE_DISPLACEMENT: AtomicF32 = AtomicF32::new(0.0);
+    spawner.must_spawn(particle_task(ws281x, particles, &PARTICLE_DISPLACEMENT));
 
     let mut mpu = switchgrass_cattail::mpu::init(
         peripherals.I2C0,
@@ -49,8 +53,6 @@ async fn main(_spawner: Spawner) -> ! {
         &mut Delay,
     )
     .await;
-
-    let mut out = switchgrass_cattail::transmission::init(peripherals.UART1, peripherals.GPIO9);
 
     if let Err(NotStored) =
         switchgrass_cattail::mpu::load_calibrate(&mut mpu, peripherals.FLASH).await
@@ -63,8 +65,17 @@ async fn main(_spawner: Spawner) -> ! {
         .await
         .unwrap();
 
-    info!("Entering main loop");
+    let out = switchgrass_cattail::transmission::init(peripherals.UART1, peripherals.GPIO9);
 
+    spawner.must_spawn(handle_mpu6050(mpu, out, &PARTICLE_DISPLACEMENT));
+}
+
+#[embassy_executor::task]
+async fn handle_mpu6050(
+    mut mpu: Mpu6050<I2c<'static, Async>>,
+    mut out: UartTx<'static, Async>,
+    particle_displacement: &'static AtomicF32,
+) {
     loop {
         let (acc, gyro) = mpu.motion6().await.unwrap();
         let acc = acc.scaled(switchgrass_cattail::mpu::CALIBRATION_PARAMETERS.accel_scale);
@@ -77,6 +88,27 @@ async fn main(_spawner: Spawner) -> ! {
         let msg = data_message("gyro", [gyro.x(), gyro.y(), gyro.z()]);
         info!("sending {}", msg.as_str());
         out.write_async(msg.as_bytes()).await.unwrap();
+
+        let uprightness = ((-acc.x() - 0.5) * 2.0).clamp(0.0, 1.0);
+        let displacement_when_upright = -5.0;
+        let displacement_when_down = 40.0;
+        let displacement =
+            uprightness * displacement_when_upright + (1.0 - uprightness) * displacement_when_down;
+        particle_displacement.store(displacement, Ordering::Relaxed);
+    }
+}
+
+#[embassy_executor::task]
+async fn particle_task(
+    mut ws281x: Ws281x,
+    mut particles: Particles,
+    displacement: &'static AtomicF32,
+) {
+    loop {
+        let d = displacement.swap(0.0, Ordering::Relaxed) / 60.0;
+        particles.displace_by(d);
+        switchgrass_cattail::ws281x::write_particles(&mut ws281x, &particles, STRIP_LENGTH).await;
+        Timer::after_millis(1000 / 60).await
     }
 }
 

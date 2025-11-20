@@ -3,6 +3,12 @@
 version = 4
 
 [[package]]
+name = "atomic_float"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "628d228f918ac3b82fe590352cc719d30664a0c13ca3a60266fe02c7132d480a"
+
+[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1329,6 +1335,7 @@ dependencies = [
 name = "switchgrass-cattail"
 version = "0.1.0"
 dependencies = [
+ "atomic_float",
  "critical-section",
  "defmt 1.0.1",
  "embassy-executor",
@@ -1341,6 +1348,7 @@ dependencies = [
  "esp-rtos",
  "esp-storage",
  "heapless 0.9.1",
+ "libm",
  "mpu6050-dmp",
  "smart-leds",
  "static_cell",
