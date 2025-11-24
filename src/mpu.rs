@@ -1,5 +1,5 @@
-use defmt::info;
-use embassy_time::Delay;
+use defmt::{info, warn};
+use embassy_time::{Delay, Timer};
 use embedded_storage::{ReadStorage as _, Storage as _};
 use esp_hal::{
     Async,
@@ -24,13 +24,33 @@ pub async fn init<'a>(
 ) -> Mpu6050<I2c<'a, Async>> {
     info!("Initializing MPU6050");
 
-    let i2c = I2c::new(i2c, Config::default().with_frequency(Rate::from_khz(100)))
+    let mut i2c = I2c::new(i2c, Config::default().with_frequency(Rate::from_khz(100)))
         .unwrap()
         .with_sda(sda)
         .with_scl(scl)
         .into_async();
 
-    let mut mpu = Mpu6050::new(i2c, Address::default()).await.unwrap();
+    let mut attempt = 0;
+    const ATTEMPTS: u32 = 10;
+    let mut mpu = loop {
+        match Mpu6050::new(i2c, Address::default()).await {
+            Ok(mpu) => break mpu,
+            Err(e) => {
+                i2c = e.i2c;
+                warn!(
+                    "Failed to initialize MPU6050 on attempt {}: {}",
+                    attempt, e.error
+                );
+                if attempt < ATTEMPTS {
+                    info!("Sleeping and retrying to initialize MPU6050");
+                    Timer::after_millis(200).await;
+                    attempt += 1;
+                } else {
+                    panic!("Giving up, couldn't initialize MPU6050")
+                }
+            }
+        }
+    };
 
     info!("Initializing MPU6050 DMP");
     mpu.initialize_dmp(delay).await.unwrap();
