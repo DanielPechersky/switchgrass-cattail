@@ -16,11 +16,16 @@ Install rust.
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-Install all esp-related tools, following the [Embedded Rust (no_std) on Espressif](https://docs.espressif.com/projects/rust/no_std-training/) guide:
+Install all esp-related tools, following the [Embedded Rust (no_std) on Espressif](https://docs.espressif.com/projects/rust/no_std-training/) and [The Rust on Espressif Book](https://docs.espressif.com/projects/rust/book/getting-started/toolchain.html) guides:
 ```sh
 cargo install cargo-espflash espflash
 brew install llvm
+
+cargo install espup --locked
+espup install
 ```
+
+Set up [espup environment variables](https://github.com/esp-rs/espup?tab=readme-ov-file#environment-variables-setup).
 
 Also install just, a command runner:
 
