@@ -36,6 +36,30 @@ impl Particles {
     }
 }
 
+pub struct ClampedF32 {
+    value: f32,
+    min: f32,
+    max: f32,
+}
+
+impl ClampedF32 {
+    pub fn new(value: f32, min: f32, max: f32) -> Self {
+        Self {
+            value: value.clamp(min, max),
+            min,
+            max,
+        }
+    }
+
+    pub fn value(&self) -> f32 {
+        self.value
+    }
+
+    pub fn add(&mut self, other: f32) {
+        self.value = (self.value + other).clamp(self.min, self.max);
+    }
+}
+
 /// Stolen from std
 mod fpmath {
     pub fn rem_euclid(x: f32, rhs: f32) -> f32 {

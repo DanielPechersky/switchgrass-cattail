@@ -21,7 +21,11 @@ use embassy_time::{Delay, Timer};
 use esp_backtrace as _;
 use mpu6050_dmp::{config::DigitalLowPassFilter, sensor_async::Mpu6050};
 
-use switchgrass_cattail::{mpu::NotStored, particles::Particles, ws281x};
+use switchgrass_cattail::{
+    mpu::NotStored,
+    particles::{ClampedF32, Particles},
+    ws281x,
+};
 
 // This creates a default app-descriptor required by the esp-idf bootloader.
 // For more information see: <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/app_image_format.html#application-description>
@@ -76,6 +80,8 @@ async fn handle_mpu6050(
     mut out: UartTx<'static, Async>,
     particle_displacement: &'static AtomicF32,
 ) {
+    let energy_decay = 0.5 / 60.0;
+    let mut particle_effect_energy = ClampedF32::new(0.0, 0.0, 1.0);
     loop {
         let (acc, gyro) = mpu.motion6().await.unwrap();
         let acc = acc.scaled(switchgrass_cattail::mpu::CALIBRATION_PARAMETERS.accel_scale);
@@ -90,11 +96,18 @@ async fn handle_mpu6050(
         out.write_async(msg.as_bytes()).await.unwrap();
 
         let uprightness = ((-acc.x() - 0.5) * 2.0).clamp(0.0, 1.0);
-        let displacement_when_upright = -5.0;
-        let displacement_when_down = 40.0;
-        let displacement =
-            uprightness * displacement_when_upright + (1.0 - uprightness) * displacement_when_down;
-        particle_displacement.store(displacement, Ordering::Relaxed);
+        let energy_change_when_upright = 0.0;
+        let energy_change_when_down = 1.0;
+        let energy_change = uprightness * energy_change_when_upright
+            + (1.0 - uprightness) * energy_change_when_down;
+        particle_effect_energy.add(energy_change);
+
+        particle_effect_energy.add(-energy_decay);
+
+        particle_displacement.store(
+            particle_effect_energy.value() * 45.0 - 5.0,
+            Ordering::Relaxed,
+        );
     }
 }
 
