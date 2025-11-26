@@ -74,6 +74,9 @@ async fn main(spawner: Spawner) {
     spawner.must_spawn(handle_mpu6050(mpu, out, &PARTICLE_DISPLACEMENT));
 }
 
+const DISPLACEMENT_WHEN_UPRIGHT: f32 = -15.0;
+const DISPLACEMENT_WHEN_DOWN: f32 = 40.0;
+
 #[embassy_executor::task]
 async fn handle_mpu6050(
     mut mpu: Mpu6050<I2c<'static, Async>>,
@@ -100,10 +103,8 @@ async fn handle_mpu6050(
         let uprightness = (-acc.x()).max(0.0);
         let uprightness =
             (uprightness.clamp(min_value, max_value) - min_value) / (max_value - min_value);
-        let displacement_when_upright = -15.0;
-        let displacement_when_down = 40.0;
         let displacement =
-            uprightness * displacement_when_upright + (1.0 - uprightness) * displacement_when_down;
+            uprightness * DISPLACEMENT_WHEN_UPRIGHT + (1.0 - uprightness) * DISPLACEMENT_WHEN_DOWN;
 
         particle_displacement.store(displacement, Ordering::Relaxed);
     }
@@ -117,7 +118,7 @@ async fn particle_task(
 ) {
     loop {
         let d = displacement.swap(0.0, Ordering::Relaxed);
-        let color_shift = (d / 45.0).clamp(0.0, 1.0);
+        let color_shift = ((d - DISPLACEMENT_WHEN_UPRIGHT) / DISPLACEMENT_WHEN_DOWN).clamp(0.0, 1.0);
         particles.displace_by(d / 60.0);
         switchgrass_cattail::ws281x::write_particles(
             &mut ws281x,
