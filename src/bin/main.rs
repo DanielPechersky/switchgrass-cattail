@@ -97,18 +97,12 @@ async fn handle_mpu6050(
 
         let min_value = 0.8;
         let uprightness = (-acc.x() - min_value).max(0.0) / (1.0 - min_value);
-        let energy_change_when_upright = 0.0;
-        let energy_change_when_down = 1.0;
-        let energy_change = uprightness * energy_change_when_upright
-            + (1.0 - uprightness) * energy_change_when_down;
-        particle_effect_energy.add(energy_change);
+        let displacement_when_upright = -5.0;
+        let displacement_when_down = 40.0;
+        let displacement =
+            uprightness * displacement_when_upright + (1.0 - uprightness) * displacement_when_down;
 
-        particle_effect_energy.add(-energy_decay);
-
-        particle_displacement.store(
-            particle_effect_energy.value() * 45.0 - 5.0,
-            Ordering::Relaxed,
-        );
+        particle_displacement.store(displacement, Ordering::Relaxed);
     }
 }
 
