@@ -36,13 +36,16 @@ pub async fn write_particles<W: SmartLedsWriteAsync>(
     ws281x: &mut W,
     particles: &Particles,
     strip_length: usize,
+    color_shift: f32,
 ) where
     W::Color: From<RGB8>,
     W::Error: Debug,
 {
-    const STRIP_COLOR: RGB8 = gamma_correct(RGB8::new(195, 103, 0));
+    const FROM_STRIP_COLOR: RGB8 = gamma_correct(RGB8::new(195, 103, 0));
+    const TO_STRIP_COLOR: RGB8 = gamma_correct(RGB8::new(126, 204, 73));
+    let color = lerp(FROM_STRIP_COLOR, TO_STRIP_COLOR, color_shift);
     ws281x
-        .write(particles.draw(strip_length).map(|b| scale(STRIP_COLOR, b)))
+        .write(particles.draw(strip_length).map(|b| scale(color, b)))
         .await
         .unwrap()
 }
@@ -66,6 +69,17 @@ const fn gamma_correct(c: RGB8) -> RGB8 {
         GAMMA8[c.r as usize],
         GAMMA8[c.g as usize],
         GAMMA8[c.b as usize],
+    )
+}
+
+fn lerp(from: RGB8, to: RGB8, amount: f32) -> RGB8 {
+    let lerp_channel =
+        |f: u8, t: u8| -> u8 { (f as f32 * (1.0 - amount) + t as f32 * amount) as u8 };
+
+    RGB8::new(
+        lerp_channel(from.r, to.r),
+        lerp_channel(from.g, to.g),
+        lerp_channel(from.b, to.b),
     )
 }
 

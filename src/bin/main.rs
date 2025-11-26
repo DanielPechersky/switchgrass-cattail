@@ -16,7 +16,7 @@ use defmt::{info, warn};
 use esp_println as _;
 
 use embassy_executor::Spawner;
-use embassy_time::{Delay, Timer};
+use embassy_time::{Delay, Duration, Instant, Timer};
 
 use esp_backtrace as _;
 use mpu6050_dmp::{config::DigitalLowPassFilter, sensor_async::Mpu6050};
@@ -43,8 +43,8 @@ async fn main(spawner: Spawner) {
     let ws281x: Ws281x =
         ws281x::init::<WS281X_BYTES>(peripherals.SPI2, peripherals.GPIO10, peripherals.DMA_CH0);
     let particles = Particles::new(11.0);
-    static PARTICLE_DISPLACEMENT: AtomicF32 = AtomicF32::new(0.0);
-    spawner.must_spawn(particle_task(ws281x, particles, &PARTICLE_DISPLACEMENT));
+    static UPRIGHTNESS: AtomicF32 = AtomicF32::new(0.0);
+    spawner.must_spawn(particle_task(ws281x, particles, &UPRIGHTNESS));
 
     let mut mpu = switchgrass_cattail::mpu::init(
         peripherals.I2C0,
@@ -67,14 +67,17 @@ async fn main(spawner: Spawner) {
 
     let out = switchgrass_cattail::transmission::init(peripherals.UART1, peripherals.GPIO9);
 
-    spawner.must_spawn(handle_mpu6050(mpu, out, &PARTICLE_DISPLACEMENT));
+    spawner.must_spawn(handle_mpu6050(mpu, out, &UPRIGHTNESS));
 }
+
+const DISPLACEMENT_WHEN_UPRIGHT: f32 = -15.0;
+const DISPLACEMENT_WHEN_DOWN: f32 = 60.0;
 
 #[embassy_executor::task]
 async fn handle_mpu6050(
     mut mpu: Mpu6050<I2c<'static, Async>>,
     mut out: UartTx<'static, Async>,
-    particle_displacement: &'static AtomicF32,
+    uprightness_atomic: &'static AtomicF32,
 ) {
     loop {
         let (acc, gyro) = mpu.motion6().await.unwrap();
@@ -89,12 +92,13 @@ async fn handle_mpu6050(
         info!("sending {}", msg.as_str());
         out.write_async(msg.as_bytes()).await.unwrap();
 
-        let uprightness = ((-acc.x() - 0.5) * 2.0).clamp(0.0, 1.0);
-        let displacement_when_upright = -5.0;
-        let displacement_when_down = 40.0;
-        let displacement =
-            uprightness * displacement_when_upright + (1.0 - uprightness) * displacement_when_down;
-        particle_displacement.store(displacement, Ordering::Relaxed);
+        let min_value = 0.87;
+        let max_value = 0.95;
+        let uprightness = (-acc.x()).max(0.0);
+        let uprightness =
+            (uprightness.clamp(min_value, max_value) - min_value) / (max_value - min_value);
+
+        uprightness_atomic.store(uprightness, Ordering::Relaxed);
     }
 }
 
@@ -102,12 +106,35 @@ async fn handle_mpu6050(
 async fn particle_task(
     mut ws281x: Ws281x,
     mut particles: Particles,
-    displacement: &'static AtomicF32,
+    uprightness: &'static AtomicF32,
 ) {
+    let mut last_touched = Instant::now();
     loop {
-        let d = displacement.swap(0.0, Ordering::Relaxed) / 60.0;
-        particles.displace_by(d);
-        switchgrass_cattail::ws281x::write_particles(&mut ws281x, &particles, STRIP_LENGTH).await;
+        let uprightness = uprightness.swap(0.0, Ordering::Relaxed);
+
+        let d =
+            uprightness * DISPLACEMENT_WHEN_UPRIGHT + (1.0 - uprightness) * DISPLACEMENT_WHEN_DOWN;
+
+        if d >= 0.0 {
+            last_touched = Instant::now();
+        }
+
+        let mut displacement = d / 60.0;
+
+        if last_touched.elapsed() < Duration::from_secs(3) {
+            displacement = displacement.max(0.0);
+        };
+
+        let color_shift = 1.0 - uprightness;
+
+        particles.displace_by(displacement);
+        switchgrass_cattail::ws281x::write_particles(
+            &mut ws281x,
+            &particles,
+            STRIP_LENGTH,
+            color_shift,
+        )
+        .await;
         Timer::after_millis(1000 / 60).await
     }
 }
