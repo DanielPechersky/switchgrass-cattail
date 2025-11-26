@@ -115,12 +115,13 @@ async fn particle_task(
     let mut last_touched = Instant::now();
     loop {
         let uprightness = uprightness.swap(0.0, Ordering::Relaxed);
-        let d =
-            uprightness * DISPLACEMENT_WHEN_UPRIGHT + (1.0 - uprightness) * DISPLACEMENT_WHEN_DOWN;
 
-        if d > 0.0 {
+        if uprightness <= 1.0 {
             last_touched = Instant::now();
         }
+
+        let d =
+            uprightness * DISPLACEMENT_WHEN_UPRIGHT + (1.0 - uprightness) * DISPLACEMENT_WHEN_DOWN;
 
         let color_shift = ((d - DISPLACEMENT_WHEN_UPRIGHT)
             / (DISPLACEMENT_WHEN_DOWN - DISPLACEMENT_WHEN_UPRIGHT))
