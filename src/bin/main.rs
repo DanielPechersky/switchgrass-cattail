@@ -119,9 +119,16 @@ async fn particle_task(
     displacement: &'static AtomicF32,
 ) {
     loop {
-        let d = displacement.swap(0.0, Ordering::Relaxed) / 60.0;
-        particles.displace_by(d);
-        switchgrass_cattail::ws281x::write_particles(&mut ws281x, &particles, STRIP_LENGTH).await;
+        let d = displacement.swap(0.0, Ordering::Relaxed);
+        let color_shift = (d / 45.0).clamp(0.0, 1.0);
+        particles.displace_by(d / 60.0);
+        switchgrass_cattail::ws281x::write_particles(
+            &mut ws281x,
+            &particles,
+            STRIP_LENGTH,
+            color_shift,
+        )
+        .await;
         Timer::after_millis(1000 / 60).await
     }
 }
