@@ -21,11 +21,7 @@ use embassy_time::{Delay, Duration, Instant, Timer};
 use esp_backtrace as _;
 use mpu6050_dmp::{config::DigitalLowPassFilter, sensor_async::Mpu6050};
 
-use switchgrass_cattail::{
-    mpu::NotStored,
-    particles::{ClampedF32, Particles},
-    ws281x,
-};
+use switchgrass_cattail::{mpu::NotStored, particles::Particles, ws281x};
 
 // This creates a default app-descriptor required by the esp-idf bootloader.
 // For more information see: <https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/app_image_format.html#application-description>
