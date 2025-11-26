@@ -133,7 +133,7 @@ async fn particle_task(
             displacement = displacement.max(0.0);
         };
 
-        particles.displace_by(d / 60.0);
+        particles.displace_by(displacement);
         switchgrass_cattail::ws281x::write_particles(
             &mut ws281x,
             &particles,
