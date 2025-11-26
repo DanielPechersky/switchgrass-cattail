@@ -119,15 +119,13 @@ async fn particle_task(
         let d =
             uprightness * DISPLACEMENT_WHEN_UPRIGHT + (1.0 - uprightness) * DISPLACEMENT_WHEN_DOWN;
 
-        let color_shift = ((d - DISPLACEMENT_WHEN_UPRIGHT)
-            / (DISPLACEMENT_WHEN_DOWN - DISPLACEMENT_WHEN_UPRIGHT))
-            .clamp(0.0, 1.0);
-
         let mut displacement = d / 60.0;
 
         if last_touched.elapsed() < Duration::from_secs(3) {
             displacement = displacement.max(0.0);
         };
+
+        let color_shift = 1.0 - uprightness;
 
         particles.displace_by(displacement);
         switchgrass_cattail::ws281x::write_particles(
