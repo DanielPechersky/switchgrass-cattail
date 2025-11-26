@@ -96,7 +96,7 @@ async fn handle_mpu6050(
         out.write_async(msg.as_bytes()).await.unwrap();
 
         let min_value = 0.9;
-        let max_value = 1.0;
+        let max_value = 0.95;
         let uprightness = (-acc.x()).max(0.0);
         let uprightness =
             (uprightness.clamp(min_value, max_value) - min_value) / (max_value - min_value);
