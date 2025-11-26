@@ -112,12 +112,12 @@ async fn particle_task(
     loop {
         let uprightness = uprightness.swap(0.0, Ordering::Relaxed);
 
-        if uprightness < 0.99 {
-            last_touched = Instant::now();
-        }
-
         let d =
             uprightness * DISPLACEMENT_WHEN_UPRIGHT + (1.0 - uprightness) * DISPLACEMENT_WHEN_DOWN;
+
+        if d >= 0.0 {
+            last_touched = Instant::now();
+        }
 
         let mut displacement = d / 60.0;
 
