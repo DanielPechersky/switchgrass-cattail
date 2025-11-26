@@ -116,7 +116,7 @@ async fn particle_task(
     loop {
         let uprightness = uprightness.swap(0.0, Ordering::Relaxed);
 
-        if uprightness <= 1.0 {
+        if uprightness < 0.99 {
             last_touched = Instant::now();
         }
 
