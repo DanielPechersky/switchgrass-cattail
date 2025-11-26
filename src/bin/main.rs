@@ -118,7 +118,9 @@ async fn particle_task(
 ) {
     loop {
         let d = displacement.swap(0.0, Ordering::Relaxed);
-        let color_shift = ((d - DISPLACEMENT_WHEN_UPRIGHT) / DISPLACEMENT_WHEN_DOWN).clamp(0.0, 1.0);
+        let color_shift = ((d - DISPLACEMENT_WHEN_UPRIGHT)
+            / (DISPLACEMENT_WHEN_DOWN - DISPLACEMENT_WHEN_UPRIGHT))
+            .clamp(0.0, 1.0);
         particles.displace_by(d / 60.0);
         switchgrass_cattail::ws281x::write_particles(
             &mut ws281x,
