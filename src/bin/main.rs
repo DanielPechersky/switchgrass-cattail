@@ -71,7 +71,7 @@ async fn main(spawner: Spawner) {
 }
 
 const DISPLACEMENT_WHEN_UPRIGHT: f32 = -15.0;
-const DISPLACEMENT_WHEN_DOWN: f32 = 40.0;
+const DISPLACEMENT_WHEN_DOWN: f32 = 60.0;
 
 #[embassy_executor::task]
 async fn handle_mpu6050(
@@ -92,7 +92,7 @@ async fn handle_mpu6050(
         info!("sending {}", msg.as_str());
         out.write_async(msg.as_bytes()).await.unwrap();
 
-        let min_value = 0.93;
+        let min_value = 0.87;
         let max_value = 0.95;
         let uprightness = (-acc.x()).max(0.0);
         let uprightness =
