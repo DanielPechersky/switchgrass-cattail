@@ -95,7 +95,7 @@ async fn handle_mpu6050(
         info!("sending {}", msg.as_str());
         out.write_async(msg.as_bytes()).await.unwrap();
 
-        let min_value = 0.5;
+        let min_value = 0.8;
         let uprightness = (-acc.x() - min_value).max(0.0) / (1.0 - min_value);
         let energy_change_when_upright = 0.0;
         let energy_change_when_down = 1.0;
