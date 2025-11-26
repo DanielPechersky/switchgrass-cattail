@@ -42,7 +42,7 @@ pub async fn write_particles<W: SmartLedsWriteAsync>(
     W::Error: Debug,
 {
     const FROM_STRIP_COLOR: RGB8 = gamma_correct(RGB8::new(195, 103, 0));
-    const TO_STRIP_COLOR: RGB8 = gamma_correct(RGB8::new(240, 70, 0));
+    const TO_STRIP_COLOR: RGB8 = gamma_correct(RGB8::new(173, 235, 131));
     let color = lerp(FROM_STRIP_COLOR, TO_STRIP_COLOR, color_shift);
     ws281x
         .write(particles.draw(strip_length).map(|b| scale(color, b)))
