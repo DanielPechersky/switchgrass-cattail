@@ -9,7 +9,12 @@
 use core::{fmt::Write as _, sync::atomic::Ordering};
 
 use atomic_float::AtomicF32;
-use esp_hal::{Async, clock::CpuClock, i2c::master::I2c};
+use esp_hal::{
+    Async,
+    clock::CpuClock,
+    gpio::{Level, Output, OutputConfig},
+    i2c::master::I2c,
+};
 use esp_hal::{timer::timg::TimerGroup, uart::UartTx};
 
 use defmt::{info, warn};
@@ -66,6 +71,8 @@ async fn main(spawner: Spawner) {
         .unwrap();
 
     let out = switchgrass_cattail::transmission::init(peripherals.UART1, peripherals.GPIO9);
+    // Set the RS485 driver to transmitting mode
+    let _driver_enable = Output::new(peripherals.GPIO8, Level::High, OutputConfig::default());
 
     spawner.must_spawn(handle_mpu6050(mpu, out, &UPRIGHTNESS));
 }
